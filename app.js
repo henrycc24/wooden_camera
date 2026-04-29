@@ -375,6 +375,27 @@ const app = {
       return;
     }
 
+    if (ip === "localhost" || ip === "127.0.0.1") {
+      this.connected = true;
+      this.updateConnectionUI(`Bridge UDP`, 'btn-danger', 'Disconnect');
+      this.cameraRunning = true; // Block local processing
+      this.toast(`Connected to Local UDP Bridge!`, 'success');
+      
+      this.udpPollTimer = setInterval(async () => {
+        try {
+          const resp = await fetch(`${BRIDGE_URL}/api/wireless_grid`);
+          if (resp.ok) {
+            const data = await resp.json();
+            const receivedGrid = ImageProcessor.bytesToGrid(data.grid);
+            this.currentCameraGrid = receivedGrid;
+            this.renderGrid('camera-grid', receivedGrid);
+            this.updateBytePreview('camera-byte-preview', receivedGrid);
+          }
+        } catch (e) {}
+      }, 100);
+      return;
+    }
+
     this.toast(`Connecting to ws://${ip}:81...`, 'info');
     
     // Connect websocket
@@ -462,6 +483,12 @@ const app = {
   },
 
   async disconnect() {
+    if (this.udpPollTimer) {
+      clearInterval(this.udpPollTimer);
+      this.udpPollTimer = null;
+      this.cameraRunning = false;
+    }
+    
     if (this.connectionMode === 'serial') {
       try {
         await fetch(`${BRIDGE_URL}/api/disconnect`, { method: 'POST' });

@@ -58,6 +58,9 @@ serial_lock = threading.Lock()
 # Global camera frame
 latest_frame_jpg = None
 
+# Global UDP grid
+latest_udp_grid = None
+
 def serial_reader_thread():
     global ser, latest_frame_jpg
     FRAME_WIDTH = 96
@@ -113,6 +116,27 @@ def serial_reader_thread():
 # Start reader thread
 reader_thread = threading.Thread(target=serial_reader_thread, daemon=True)
 reader_thread.start()
+
+def udp_listener_thread():
+    global latest_udp_grid
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(('0.0.0.0', 8888))
+    logger.info("UDP listener started on port 8888")
+    
+    while True:
+        try:
+            sock.settimeout(1.0)
+            data, addr = sock.recvfrom(1024)
+            if len(data) == 9 and data[0] == 0xFF:
+                latest_udp_grid = list(data[1:9])
+        except socket.timeout:
+            continue
+        except Exception as e:
+            logger.error(f"UDP Error: {e}")
+
+udp_thread = threading.Thread(target=udp_listener_thread, daemon=True)
+udp_thread.start()
 
 
 def grid_to_bytes(grid):
@@ -174,6 +198,12 @@ def detect_pico_port():
 # ──────────────────────────────────────────
 # API Endpoints
 # ──────────────────────────────────────────
+
+@app.route('/api/wireless_grid', methods=['GET'])
+def get_wireless_grid():
+    if latest_udp_grid is not None:
+        return jsonify({"grid": latest_udp_grid})
+    return jsonify({"error": "No wireless data"}), 404
 
 @app.route('/api/camera/stream')
 def camera_stream():

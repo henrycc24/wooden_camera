@@ -447,8 +447,8 @@ void heartbeat() {
 
 #if defined(ARDUINO_ARCH_RP2040)
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("[STATUS] WiFi RSSI: %d dBm  |  WS clients: %d\n",
-                  WiFi.RSSI(), ws.connectedClients());
+    Serial.printf("[STATUS] WiFi RSSI: %d dBm  |  WS clients: %d  |  IP: %s\n",
+                  WiFi.RSSI(), ws.connectedClients(), WiFi.localIP().toString().c_str());
   }
 #endif
 
