@@ -57,6 +57,11 @@ int main() {
 		cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
 		led_state = !led_state;
 
+		// Drain incoming serial data so the RX buffer doesn't fill up and hang the USB CDC
+		while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
+			// Discard
+		}
+
 		// Custom capture with timeouts to avoid hard hangs
 		dma_channel_config c = dma_channel_get_default_config(config.dma_channel);
 		channel_config_set_read_increment(&c, false);
