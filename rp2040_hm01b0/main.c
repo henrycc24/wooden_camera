@@ -136,38 +136,33 @@ int main() {
 			}
 		}
 
-		// Process 96x96 into 8x8 binary grid
-		uint8_t grid[8] = {0};
-		for (int row = 0; row < 8; row++) {
-			for (int col = 0; col < 8; col++) {
-				uint32_t sum = 0;
-				// Sum up the 12x12 block
-				for (int by = 0; by < 12; by++) {
-					for (int bx = 0; bx < 12; bx++) {
-						sum += image[(row * 12 + by) * 96 + (col * 12 + bx)];
-					}
-				}
-				uint8_t avg = sum / 144;
-				// Threshold (0 = white, 1 = black)
-				if (avg < 128) {
-					grid[row] |= (1 << (7 - col));
-				}
+		static uint8_t frame_id = 0;
+		frame_id++;
+		
+		// Send 96x96 frame in 7 UDP chunks (max UDP payload is ~1472 bytes)
+		for (int i = 0; i < 7; i++) {
+			int offset = i * 1400;
+			int length = 1400;
+			if (offset + length > 9216) length = 9216 - offset;
+			
+			// Payload: 0x55, 0xAA header + frame_id + chunk_index + chunk_data
+			uint8_t payload[1404];
+			payload[0] = 0x55;
+			payload[1] = 0xAA;
+			payload[2] = frame_id;
+			payload[3] = i; // Chunk index 0 to 6
+			memcpy(&payload[4], &image[offset], length);
+			
+			struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, length + 4, PBUF_RAM);
+			if (p) {
+				memcpy(p->payload, payload, length + 4);
+				cyw43_arch_lwip_begin();
+				udp_sendto(udp, p, &dest_ip, TARGET_PORT);
+				cyw43_arch_lwip_end();
+				pbuf_free(p);
 			}
-		}
-
-		// Prepare 9-byte payload: 0xFF + 8 rows
-		uint8_t payload[9];
-		payload[0] = 0xFF; // START_BYTE
-		memcpy(&payload[1], grid, 8);
-
-		// Send via UDP
-		struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(payload), PBUF_RAM);
-		if (p) {
-			memcpy(p->payload, payload, sizeof(payload));
-			cyw43_arch_lwip_begin();
-			udp_sendto(udp, p, &dest_ip, TARGET_PORT);
-			cyw43_arch_lwip_end();
-			pbuf_free(p);
+			// Tiny delay to prevent slamming the WiFi chip and losing packets
+			sleep_us(100);
 		}
 	}
 
