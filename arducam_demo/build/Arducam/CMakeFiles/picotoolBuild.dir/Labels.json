@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/CMakeFiles/picotoolBuild"
+		},
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/CMakeFiles/picotoolBuild.rule"
+		},
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/CMakeFiles/picotoolBuild-complete.rule"
+		},
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/picotool/src/picotoolBuild-stamp/picotoolBuild-build.rule"
+		},
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/picotool/src/picotoolBuild-stamp/picotoolBuild-configure.rule"
+		},
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/picotool/src/picotoolBuild-stamp/picotoolBuild-download.rule"
+		},
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/picotool/src/picotoolBuild-stamp/picotoolBuild-install.rule"
+		},
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/picotool/src/picotoolBuild-stamp/picotoolBuild-mkdir.rule"
+		},
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/picotool/src/picotoolBuild-stamp/picotoolBuild-patch.rule"
+		},
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/picotool/src/picotoolBuild-stamp/picotoolBuild-test.rule"
+		},
+		{
+			"file" : "/Users/henry/Research/blink/RPI-Pico-Cam/arducam_demo/build/Arducam/picotool/src/picotoolBuild-stamp/picotoolBuild-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"picotoolBuild"
+		],
+		"name" : "picotoolBuild"
+	}
+}

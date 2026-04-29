@@ -1,0 +1,1 @@
+cmd='/Users/henry/.pico-sdk/cmake/v3.31.5/CMake.app/Contents/bin/cmake;-DCMAKE_MAKE_PROGRAM:FILEPATH=/Users/henry/.pico-sdk/ninja/v1.12.1/ninja;-DPICO_SDK_PATH:FILEPATH=/Users/henry/.pico-sdk/sdk/2.2.0;-DUSE_PRECOMPILED:BOOL=true;-DUSE_MBEDTLS=1;-DPICO_DEBUG_INFO_IN_RELEASE=OFF;-GNinja;-S;<SOURCE_DIR><SOURCE_SUBDIR>;-B;<BINARY_DIR>'
