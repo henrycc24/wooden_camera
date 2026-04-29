@@ -1,11 +1,20 @@
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
-#include "tusb.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "arducam/arducam.h"
 #include "pico/cyw43_arch.h"
+#include "lwip/udp.h"
+#include "lwip/pbuf.h"
+#include "lwip/ip4_addr.h"
+
+// Define the target IP address of the Wooden Mirror Pico.
+// 255.255.255.255 broadcasts to the entire subnet.
+#define TARGET_IP "255.255.255.255"
+#define TARGET_PORT 8888
+#define WIFI_SSID "RedRover"
+#define WIFI_PASSWORD ""
 
 uint8_t image_buf[324*324];
 uint8_t image_tmp[162*162];
@@ -19,15 +28,23 @@ int main() {
 		return -1;
 	}
 
-	// Wait for USB CDC to connect
-	while (!tud_cdc_connected()) {
+	cyw43_arch_enable_sta_mode();
+	printf("Connecting to WiFi '%s'...\n", WIFI_SSID);
+	
+	// Fast blink while connecting
+	while (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_OPEN, 10000) != 0) {
+		printf("Failed to connect, retrying...\n");
 		cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-		sleep_ms(250);
+		sleep_ms(100);
 		cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-		sleep_ms(250);
+		sleep_ms(100);
 	}
+	printf("Connected to WiFi!\n");
 	cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-	sleep_ms(500);
+	
+	struct udp_pcb *udp = udp_new();
+	ip_addr_t dest_ip;
+	ipaddr_aton(TARGET_IP, &dest_ip);
 
 	struct arducam_config config;
 	config.sccb = i2c0;
@@ -50,19 +67,15 @@ int main() {
 	printf("Camera initialized. Starting capture...\n");
 
 	uint16_t x, y, index;
-	int frame_count = 0;
 	bool led_state = true;
 
 	while (true) {
 		cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
 		led_state = !led_state;
+		
+		cyw43_arch_poll();
 
-		// Drain incoming serial data so the RX buffer doesn't fill up and hang the USB CDC
-		while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
-			// Discard
-		}
-
-		// Custom capture with timeouts to avoid hard hangs
+		// Custom capture with timeouts
 		dma_channel_config c = dma_channel_get_default_config(config.dma_channel);
 		channel_config_set_read_increment(&c, false);
 		channel_config_set_write_increment(&c, true);
@@ -78,19 +91,13 @@ int main() {
 		// Wait for VSYNC low
 		timeout = make_timeout_time_ms(2000);
 		while (gpio_get(config.pin_vsync) == true && !time_reached(timeout));
-		if (time_reached(timeout)) {
-			printf("ERROR: Timeout waiting for VSYNC low\n");
-			success = false;
-		}
+		if (time_reached(timeout)) success = false;
 
 		if (success) {
 			// Wait for VSYNC high
 			timeout = make_timeout_time_ms(2000);
 			while (gpio_get(config.pin_vsync) == false && !time_reached(timeout));
-			if (time_reached(timeout)) {
-				printf("ERROR: Timeout waiting for VSYNC high\n");
-				success = false;
-			}
+			if (time_reached(timeout)) success = false;
 		}
 
 		if (success) {
@@ -103,15 +110,12 @@ int main() {
 			pio_sm_set_enabled(config.pio, config.pio_sm, false);
 
 			if (time_reached(timeout)) {
-				printf("ERROR: DMA timeout (got partial frame)\n");
-				// Abort DMA
 				dma_channel_abort(config.dma_channel);
 				success = false;
 			}
 		}
 
 		if (!success) {
-			// If camera failed, wait a bit and re-init
 			sleep_ms(1000);
 			arducam_init(&config);
 			continue;
@@ -132,16 +136,39 @@ int main() {
 			}
 		}
 
-		// Send frame: 0x55 0xAA header + 96*96 grayscale bytes
-		putchar_raw(0x55);
-		putchar_raw(0xAA);
-		for(int j = 0; j < 96*96; j++){
-			putchar_raw(image[j]);
+		// Process 96x96 into 8x8 binary grid
+		uint8_t grid[8] = {0};
+		for (int row = 0; row < 8; row++) {
+			for (int col = 0; col < 8; col++) {
+				uint32_t sum = 0;
+				// Sum up the 12x12 block
+				for (int by = 0; by < 12; by++) {
+					for (int bx = 0; bx < 12; bx++) {
+						sum += image[(row * 12 + by) * 96 + (col * 12 + bx)];
+					}
+				}
+				uint8_t avg = sum / 144;
+				// Threshold (0 = white, 1 = black)
+				if (avg < 128) {
+					grid[row] |= (1 << (7 - col));
+				}
+			}
 		}
-		stdio_flush();
 
-		frame_count++;
-		sleep_ms(1);
+		// Prepare 9-byte payload: 0xFF + 8 rows
+		uint8_t payload[9];
+		payload[0] = 0xFF; // START_BYTE
+		memcpy(&payload[1], grid, 8);
+
+		// Send via UDP
+		struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(payload), PBUF_RAM);
+		if (p) {
+			memcpy(p->payload, payload, sizeof(payload));
+			cyw43_arch_lwip_begin();
+			udp_sendto(udp, p, &dest_ip, TARGET_PORT);
+			cyw43_arch_lwip_end();
+			pbuf_free(p);
+		}
 	}
 
 	return 0;

@@ -21,8 +21,10 @@ target_link_libraries(arducam_firmware
 	hardware_i2c
 	hardware_pio
 	hardware_pwm
-	pico_cyw43_arch_none
+	pico_cyw43_arch_lwip_poll
 )
+
+target_include_directories(arducam_firmware PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 # enable usb output, disable uart output
 pico_enable_stdio_usb(arducam_firmware 1)
 pico_enable_stdio_uart(arducam_firmware 0)
