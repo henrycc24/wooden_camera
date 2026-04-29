@@ -377,6 +377,11 @@ void startWebSocketServer() {
   }
 }
 
+#include <WiFiUdp.h>
+
+WiFiUDP Udp;
+const unsigned int localUdpPort = 8888;
+
 void checkWiFiHealth() {
   if (state == STATE_WIFI_FAILED) {
     if (millis() - lastReconnectTry > WIFI_RECONNECT_INTERVAL) {
@@ -384,6 +389,8 @@ void checkWiFiHealth() {
       Serial.println("[WIFI] Attempting reconnection...");
       if (connectWiFi()) {
         startWebSocketServer();
+        Udp.begin(localUdpPort);
+        Serial.printf("[UDP] Listening on port %d\n", localUdpPort);
         state = STATE_WIFI_CONNECTED;
         ledShowState();
       }
@@ -395,6 +402,21 @@ void checkWiFiHealth() {
     Serial.println("[WIFI] Connection lost!");
     state = STATE_WIFI_FAILED;
     ledShowState();
+  }
+}
+
+void pollUDP() {
+  int packetSize = Udp.parsePacket();
+  if (packetSize > 0) {
+    uint8_t packetBuffer[32];
+    int len = Udp.read(packetBuffer, sizeof(packetBuffer));
+    if (len >= 9) {
+      if (processFrame(packetBuffer, 9)) {
+        ledFlash(0, 0, 255, 30); // Flash blue for UDP
+      } else {
+        ledFlash(255, 0, 0, 50);
+      }
+    }
   }
 }
 
@@ -469,6 +491,8 @@ void setup() {
 #if defined(ARDUINO_ARCH_RP2040)
   if (connectWiFi()) {
     startWebSocketServer();
+    Udp.begin(localUdpPort);
+    Serial.printf("[UDP] Listening on port %d\n", localUdpPort);
     state = STATE_WIFI_CONNECTED;
   } else {
     state = STATE_WIFI_FAILED;
@@ -501,6 +525,7 @@ void loop() {
     ledShowState();
   }
   prevClients = clients;
+  pollUDP();
 #endif
 
   pollSerial();
