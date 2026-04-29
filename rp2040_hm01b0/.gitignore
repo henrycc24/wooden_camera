@@ -1,1 +1,8 @@
 build/
+.pico-sdk/
+*.elf
+*.bin
+*.map
+*.hex
+*.uf2
+.DS_Store
