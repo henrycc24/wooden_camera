@@ -115,13 +115,9 @@ const app = {
   // ──────────────────────────────────────────
   async startCamera() {
     try {
-      this.cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
-      });
-
       const video = document.getElementById('camera-video');
-      video.srcObject = this.cameraStream;
-      await video.play();
+      video.crossOrigin = "anonymous";
+      video.src = `${BRIDGE_URL}/api/camera/stream?t=${Date.now()}`;
 
       this.cameraRunning = true;
       document.getElementById('video-overlay').classList.add('hidden');
@@ -130,7 +126,7 @@ const app = {
       document.getElementById('status-camera-dot').classList.add('active');
       document.getElementById('status-camera-text').textContent = 'Camera: active';
 
-      this.toast('Camera started', 'success');
+      this.toast('HM01B0 Camera started', 'success');
       this.startProcessingLoop();
     } catch (err) {
       this.toast(`Camera error: ${err.message}`, 'error');
@@ -139,16 +135,11 @@ const app = {
   },
 
   stopCamera() {
-    if (this.cameraStream) {
-      this.cameraStream.getTracks().forEach(t => t.stop());
-      this.cameraStream = null;
-    }
-
     this.cameraRunning = false;
     this.stopProcessingLoop();
 
     const video = document.getElementById('camera-video');
-    video.srcObject = null;
+    video.src = "";
 
     document.getElementById('video-overlay').classList.remove('hidden');
     document.getElementById('btn-start-camera').disabled = false;
@@ -169,7 +160,7 @@ const app = {
       if (!this.cameraRunning) return;
 
       const video = document.getElementById('camera-video');
-      if (video.readyState >= video.HAVE_CURRENT_DATA) {
+      if (video.complete && video.naturalHeight !== 0) {
         // Process frame
         this.currentCameraGrid = this.processor.process(video);
         this.renderGrid('camera-grid', this.currentCameraGrid);
