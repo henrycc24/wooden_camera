@@ -22,4 +22,7 @@ target_link_libraries(arducam_firmware
 	hardware_pio
 	hardware_pwm
 )
+# enable usb output, disable uart output
+pico_enable_stdio_usb(arducam_firmware 1)
+pico_enable_stdio_uart(arducam_firmware 0)
 pico_add_extra_outputs(arducam_firmware)
