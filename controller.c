@@ -162,6 +162,7 @@ bool sendRowsToWorker(int worker, uint8_t rowA, uint8_t rowB) {
 }
 
 void updateGrid(const uint8_t newGrid[GRID_ROWS]) {
+  bool changed = false;
   for (int w = 0; w < NUM_WORKERS; w++) {
     int rowA = w * 2;
     int rowB = w * 2 + 1;
@@ -171,8 +172,17 @@ void updateGrid(const uint8_t newGrid[GRID_ROWS]) {
       sendRowsToWorker(w, newGrid[rowA], newGrid[rowB]);
       currentGrid[rowA] = newGrid[rowA];
       currentGrid[rowB] = newGrid[rowB];
+      changed = true;
     }
   }
+#if defined(ARDUINO_ARCH_RP2040)
+  if (changed && ws.connectedClients() > 0) {
+    uint8_t syncMsg[9];
+    syncMsg[0] = START_BYTE;
+    memcpy(&syncMsg[1], currentGrid, 8);
+    ws.broadcastBIN(syncMsg, 9);
+  }
+#endif
 }
 
 void resetGrid() {

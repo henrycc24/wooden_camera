@@ -380,11 +380,29 @@ const app = {
     // Connect websocket
     try {
       this.webSocket = new WebSocket(`ws://${ip}:81/`);
+      this.webSocket.binaryType = 'arraybuffer';
       
       this.webSocket.onopen = (e) => {
         this.connected = true;
         this.updateConnectionUI(`WiFi: ${ip}`, 'btn-danger', 'Disconnect');
         this.toast(`Connected wirelessly to Pico W!`, 'success');
+      };
+
+      this.webSocket.onmessage = (e) => {
+        if (e.data instanceof ArrayBuffer) {
+          const bytes = new Uint8Array(e.data);
+          if (bytes.length === 9 && bytes[0] === 0xFF) {
+            const gridBytes = Array.from(bytes.slice(1));
+            const receivedGrid = ImageProcessor.bytesToGrid(gridBytes);
+            
+            // Only update UI if we aren't actively processing a local camera
+            if (!this.cameraRunning) {
+              this.currentCameraGrid = receivedGrid;
+              this.renderGrid('camera-grid', receivedGrid);
+              this.updateBytePreview('camera-byte-preview', receivedGrid);
+            }
+          }
+        }
       };
 
       this.webSocket.onerror = (e) => {
