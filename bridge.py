@@ -118,20 +118,51 @@ reader_thread = threading.Thread(target=serial_reader_thread, daemon=True)
 reader_thread.start()
 
 def udp_listener_thread():
-    global latest_udp_grid
+    global latest_udp_grid, latest_frame_jpg
     import socket
+    import numpy as np
+    import cv2
+    
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(('0.0.0.0', 8888))
     logger.info("UDP listener started on port 8888")
     
+    # Buffer for reassembling chunks
+    image_buffer = bytearray(9216)
+    chunks_received = 0
+    current_frame_id = -1
+    
     while True:
         try:
             sock.settimeout(1.0)
-            data, addr = sock.recvfrom(1024)
+            data, addr = sock.recvfrom(2000)
+            
             if len(data) == 9 and data[0] == 0xFF:
                 latest_udp_grid = list(data[1:9])
-        except socket.timeout:
-            continue
+            elif len(data) > 4 and data[0] == 0x55 and data[1] == 0xAA:
+                frame_id = data[2]
+                chunk_idx = data[3]
+                payload = data[4:]
+                
+                # If we see a new frame, reset reassembly
+                if frame_id != current_frame_id:
+                    current_frame_id = frame_id
+                    chunks_received = 0
+                
+                offset = chunk_idx * 1400
+                length = len(payload)
+                if offset + length <= 9216:
+                    image_buffer[offset:offset+length] = payload
+                    chunks_received |= (1 << chunk_idx)
+                
+                # Check if all 7 chunks received (bits 0-6 = 0x7F)
+                if chunks_received == 0x7F:
+                    img_array = np.frombuffer(image_buffer, dtype=np.uint8).reshape((96, 96))
+                    ret, jpeg = cv2.imencode('.jpg', img_array)
+                    if ret:
+                        latest_frame_jpg = jpeg.tobytes()
+                    chunks_received = 0 # Reset so we don't re-render same data
+                    current_frame_id = -1
         except Exception as e:
             logger.error(f"UDP Error: {e}")
 
