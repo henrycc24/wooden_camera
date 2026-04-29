@@ -246,14 +246,28 @@ void singleCapture(void){
    start_capture(); 
    while(!get_bit(ARDUCHIP_TRIG , CAP_DONE_MASK)){;}
    int length = read_fifo_length();
+   printf("JPEG frame: %d bytes\n", length);
    count = length;
    i = 0 ;
    cs_select();
    set_fifo_burst();//Set fifo burst mode
    spi_read_blocking(SPI_PORT, BURST_FIFO_READ,value, length);
+   // Send over USB serial (stdout) with frame markers
+   // Marker: "FRAME_START:<length>\n"
+   printf("FRAME_START:%d\n", length);
+   fflush(stdout);
+   // Write raw JPEG bytes to stdout (USB)
+   for(int j = 0; j < length; j++){
+       putchar_raw(value[j]);
+   }
+   fflush(stdout);
+   printf("\nFRAME_END\n");
+   fflush(stdout);
+   // Also send over UART if connected
    uart_write_blocking(UART_ID, value, length);
 	 count = 0;
 	 cs_deselect();
+   sleep_ms(100);
 }
 uint8_t spiBusDetect(void){
     write_reg(0x00, 0x55);
