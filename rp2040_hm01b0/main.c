@@ -5,6 +5,7 @@
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "arducam/arducam.h"
+#include "pico/cyw43_arch.h"
 
 uint8_t image_buf[324*324];
 uint8_t image_tmp[162*162];
@@ -13,17 +14,19 @@ uint8_t image[96*96];
 int main() {
 	stdio_init_all();
 
-	gpio_init(PIN_LED);
-	gpio_set_dir(PIN_LED, GPIO_OUT);
+	if (cyw43_arch_init()) {
+		printf("WiFi init failed\n");
+		return -1;
+	}
 
 	// Wait for USB CDC to connect
 	while (!tud_cdc_connected()) {
-		gpio_put(PIN_LED, 1);
+		cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 		sleep_ms(250);
-		gpio_put(PIN_LED, 0);
+		cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 		sleep_ms(250);
 	}
-	gpio_put(PIN_LED, 1);
+	cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 	sleep_ms(500);
 
 	struct arducam_config config;
@@ -48,9 +51,11 @@ int main() {
 
 	uint16_t x, y, index;
 	int frame_count = 0;
+	bool led_state = true;
 
 	while (true) {
-		gpio_put(PIN_LED, !gpio_get(PIN_LED));
+		cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
+		led_state = !led_state;
 
 		// Custom capture with timeouts to avoid hard hangs
 		dma_channel_config c = dma_channel_get_default_config(config.dma_channel);

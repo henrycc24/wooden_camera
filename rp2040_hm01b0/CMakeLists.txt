@@ -21,6 +21,7 @@ target_link_libraries(arducam_firmware
 	hardware_i2c
 	hardware_pio
 	hardware_pwm
+	pico_cyw43_arch_none
 )
 # enable usb output, disable uart output
 pico_enable_stdio_usb(arducam_firmware 1)
