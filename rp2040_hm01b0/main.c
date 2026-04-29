@@ -11,7 +11,7 @@
 
 // Define the target IP address of the Wooden Mirror Pico.
 // 255.255.255.255 broadcasts to the entire subnet.
-#define TARGET_IP "255.255.255.255"
+#define TARGET_IP "10.48.23.243"
 #define TARGET_PORT 8888
 #define WIFI_SSID "RedRover"
 #define WIFI_PASSWORD ""
