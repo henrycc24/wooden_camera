@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wooden Mirror — Control Panel</title>
+  <meta name="description" content="Control panel for an 8×8 wooden mirror art installation driven by servo motors and Raspberry Pi Pico.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Toast container for notifications -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <h1>🪵 Wooden Mirror</h1>
+      <p class="subtitle">8 × 8 SERVO-DRIVEN TILE DISPLAY</p>
+    </header>
+
+    <!-- Connection Bar -->
+    <div class="connection-bar" id="connection-bar">
+      <div class="connection-dot" id="connection-dot"></div>
+      <span class="connection-status" id="connection-status">Disconnected</span>
+      
+      <select id="mode-select" onchange="app.onModeChange(this.value)">
+        <option value="serial">Serial Bridge</option>
+        <option value="wireless">Pico W WiFi</option>
+      </select>
+
+      <!-- Serial controls -->
+      <div id="serial-controls" style="display: flex; gap: 8px;">
+        <select id="port-select">
+          <option value="">Select port...</option>
+        </select>
+        <button class="btn btn-secondary" onclick="app.refreshPorts()" title="Refresh Ports">↻</button>
+      </div>
+
+      <!-- Wireless controls -->
+      <div id="wireless-controls" style="display: none; gap: 8px;">
+        <input type="text" id="ip-input" placeholder="e.g. 192.168.1.100" style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: monospace; width: 150px;">
+      </div>
+
+      <button class="btn btn-success" id="btn-connect" onclick="app.toggleConnection()">Connect</button>
+    </div>
+
+    <!-- Tab Navigation -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" id="tab-btn-camera" onclick="app.switchTab('camera')">
+        <span class="icon">📷</span> Camera
+      </button>
+      <button class="tab-btn" id="tab-btn-testing" onclick="app.switchTab('testing')">
+        <span class="icon">🧪</span> Testing
+      </button>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════
+         CAMERA TAB
+         ═══════════════════════════════════════════ -->
+    <div class="tab-content active" id="tab-camera">
+      <div class="camera-layout">
+        <!-- Video Feed -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><span class="icon">🎥</span> Live Feed</span>
+            <div class="btn-group">
+              <button class="btn btn-primary" id="btn-start-camera" onclick="app.startCamera()">Start Camera</button>
+              <button class="btn btn-danger" id="btn-stop-camera" onclick="app.stopCamera()" disabled>Stop</button>
+            </div>
+          </div>
+          <div class="video-container" id="video-container">
+            <video id="camera-video" autoplay playsinline muted></video>
+            <div class="video-overlay" id="video-overlay">
+              <div style="text-align:center">
+                <div class="icon">📷</div>
+                <div>Click "Start Camera" to begin</div>
+              </div>
+            </div>
+          </div>
+          <!-- Threshold Slider -->
+          <div class="controls-row">
+            <div class="slider-group">
+              <span class="slider-label">Threshold</span>
+              <input type="range" id="threshold-slider" min="0" max="255" value="128" oninput="app.onThresholdChange(this.value)">
+              <span class="slider-value" id="threshold-value">128</span>
+            </div>
+          </div>
+          <!-- Interval Slider -->
+          <div class="controls-row">
+            <div class="slider-group">
+              <span class="slider-label">Send Rate</span>
+              <input type="range" id="interval-slider" min="50" max="1000" value="200" step="50" oninput="app.onIntervalChange(this.value)">
+              <span class="slider-value" id="interval-value">5 fps</span>
+            </div>
+            <label style="font-size:0.8rem;color:var(--text-secondary);display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" id="auto-send-toggle" checked onchange="app.onAutoSendToggle(this.checked)">
+              Auto-send
+            </label>
+          </div>
+        </div>
+
+        <!-- Processed Grid Preview -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><span class="icon">🔲</span> Processed Output</span>
+            <button class="btn btn-secondary" id="btn-send-frame" onclick="app.sendCurrentGrid()">Send Now</button>
+          </div>
+          <div class="grid-container">
+            <div class="grid-label">8 × 8 mirror grid</div>
+            <div class="wooden-grid" id="camera-grid">
+              <!-- 64 cells injected by JS -->
+            </div>
+          </div>
+          <!-- Byte Preview -->
+          <div class="byte-preview" id="camera-byte-preview">Waiting for camera data...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+         TESTING TAB
+         ═══════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-testing">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><span class="icon">🧪</span> Manual Grid Testing</span>
+          <div class="btn-group">
+            <button class="btn btn-primary" id="btn-send-test" onclick="app.sendTestGrid()">Send Grid</button>
+            <button class="btn btn-secondary" onclick="app.fillTestGrid(0)">Clear All</button>
+            <button class="btn btn-secondary" onclick="app.fillTestGrid(1)">Fill All</button>
+            <button class="btn btn-secondary" onclick="app.checkerboardTestGrid()">Checkerboard</button>
+            <button class="btn btn-secondary" onclick="app.invertTestGrid()">Invert</button>
+          </div>
+        </div>
+        <div class="grid-container">
+          <div class="grid-label">Click cells to toggle · white = 0° · black = 180°</div>
+          <div class="wooden-grid testing-grid" id="testing-grid">
+            <!-- 64 cells injected by JS -->
+          </div>
+        </div>
+        <!-- Byte Preview -->
+        <div class="byte-preview" id="testing-byte-preview">Click cells to build a pattern, then press "Send Grid"</div>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <div class="status-item">
+        <div class="dot" id="status-camera-dot"></div>
+        <span id="status-camera-text">Camera: off</span>
+      </div>
+      <div class="status-item">
+        <div class="dot" id="status-connection-dot"></div>
+        <span id="status-connection-text">Connection: disconnected</span>
+      </div>
+      <div class="status-item">
+        <span id="status-fps-text">FPS: —</span>
+      </div>
+      <div class="status-item" style="margin-left:auto">
+        <span id="status-last-sent">Last sent: never</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="image_processor.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

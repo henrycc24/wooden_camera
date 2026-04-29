@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Processor Tests — Wooden Mirror</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0f0f13;
+      color: #e0e0e0;
+      padding: 24px;
+    }
+    h1 { color: #a78bfa; margin-bottom: 8px; font-size: 1.5rem; }
+    h2 { color: #818cf8; margin: 20px 0 8px; font-size: 1.1rem; }
+    .summary {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin: 12px 0 20px;
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    .summary.pass { background: #064e3b; color: #6ee7b7; border: 1px solid #10b981; }
+    .summary.fail { background: #7f1d1d; color: #fca5a5; border: 1px solid #ef4444; }
+    .summary.running { background: #1e1b4b; color: #a5b4fc; border: 1px solid #6366f1; }
+    .test-result {
+      padding: 8px 12px;
+      margin: 4px 0;
+      border-radius: 6px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .test-result.pass { background: #052e16; color: #86efac; }
+    .test-result.fail { background: #450a0a; color: #fca5a5; }
+    .test-result .icon { font-size: 1rem; }
+    .grid-preview {
+      display: inline-grid;
+      grid-template-columns: repeat(8, 20px);
+      grid-template-rows: repeat(8, 20px);
+      gap: 1px;
+      background: #333;
+      border: 1px solid #555;
+      margin: 4px 8px;
+      vertical-align: middle;
+    }
+    .grid-preview .cell {
+      width: 20px;
+      height: 20px;
+    }
+    .cell-black { background: #111; }
+    .cell-white { background: #eee; }
+    #log { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>🪵 Wooden Mirror — Image Processor Tests</h1>
+  <div id="summary" class="summary running">⏳ Running tests...</div>
+  <div id="log"></div>
+
+  <script src="../ui/image_processor.js"></script>
+  <script>
+    // ──────────────────────────────────────────
+    // Test runner
+    // ──────────────────────────────────────────
+    const logEl = document.getElementById('log');
+    const summaryEl = document.getElementById('summary');
+    let totalTests = 0;
+    let passedTests = 0;
+    let currentGroup = '';
+
+    function startGroup(name) {
+      currentGroup = name;
+      const h = document.createElement('h2');
+      h.textContent = name;
+      logEl.appendChild(h);
+    }
+
+    function assert(condition, testName, detail = '') {
+      totalTests++;
+      const div = document.createElement('div');
+      div.className = 'test-result ' + (condition ? 'pass' : 'fail');
+      const icon = condition ? '✅' : '❌';
+      div.innerHTML = `<span class="icon">${icon}</span> <span>${testName}</span>`;
+      if (!condition && detail) {
+        div.innerHTML += ` — <em>${detail}</em>`;
+      }
+      logEl.appendChild(div);
+      if (condition) passedTests++;
+    }
+
+    function assertEqual(actual, expected, testName) {
+      const match = JSON.stringify(actual) === JSON.stringify(expected);
+      const detail = match ? '' : `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`;
+      assert(match, testName, detail);
+    }
+
+    function renderGrid(grid) {
+      const container = document.createElement('div');
+      container.className = 'grid-preview';
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell ' + (grid[r][c] ? 'cell-black' : 'cell-white');
+          container.appendChild(cell);
+        }
+      }
+      return container;
+    }
+
+    // Helper: create an 8×8 ImageData with a uniform color
+    function makeUniformImageData(r, g, b, a = 255) {
+      const data = new Uint8ClampedArray(8 * 8 * 4);
+      for (let i = 0; i < 8 * 8; i++) {
+        data[i * 4 + 0] = r;
+        data[i * 4 + 1] = g;
+        data[i * 4 + 2] = b;
+        data[i * 4 + 3] = a;
+      }
+      return new ImageData(data, 8, 8);
+    }
+
+    // Helper: create a checkerboard ImageData
+    function makeCheckerboardImageData() {
+      const data = new Uint8ClampedArray(8 * 8 * 4);
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const i = (r * 8 + c) * 4;
+          const isBlack = (r + c) % 2 === 0;
+          const v = isBlack ? 0 : 255;
+          data[i] = v; data[i + 1] = v; data[i + 2] = v; data[i + 3] = 255;
+        }
+      }
+      return new ImageData(data, 8, 8);
+    }
+
+    // Helper: make grid of all same value
+    function makeUniformGrid(val) {
+      return Array.from({ length: 8 }, () => Array(8).fill(val));
+    }
+
+    // Helper: make checkerboard grid
+    function makeCheckerboardGrid() {
+      return Array.from({ length: 8 }, (_, r) =>
+        Array.from({ length: 8 }, (_, c) => (r + c) % 2 === 0 ? 1 : 0)
+      );
+    }
+
+    // ──────────────────────────────────────────
+    // Tests
+    // ──────────────────────────────────────────
+
+    function runTests() {
+      const processor = new ImageProcessor(128);
+
+      // ── Group 1: processImageData ──
+      startGroup('1. processImageData — Uniform Images');
+
+      {
+        // All-black image (rgb 0,0,0) → all cells should be 1
+        const img = makeUniformImageData(0, 0, 0);
+        const grid = processor.processImageData(img);
+        assertEqual(grid, makeUniformGrid(1), 'All-black image → all 1s');
+        logEl.appendChild(renderGrid(grid));
+      }
+
+      {
+        // All-white image (rgb 255,255,255) → all cells should be 0
+        const img = makeUniformImageData(255, 255, 255);
+        const grid = processor.processImageData(img);
+        assertEqual(grid, makeUniformGrid(0), 'All-white image → all 0s');
+        logEl.appendChild(renderGrid(grid));
+      }
+
+      {
+        // Mid-gray just above threshold (rgb 129,129,129)
+        // Luminance ≈ 129 > 128 → NOT < 128 → 0 (white)
+        const img = makeUniformImageData(129, 129, 129);
+        const grid = processor.processImageData(img);
+        assertEqual(grid, makeUniformGrid(0), 'Gray 129 at threshold 128 → all 0s (above threshold)');
+        logEl.appendChild(renderGrid(grid));
+      }
+
+      {
+        // Just below threshold (rgb 127,127,127)
+        // Luminance ≈ 127 → < 128 → 1 (black)
+        const img = makeUniformImageData(127, 127, 127);
+        const grid = processor.processImageData(img);
+        assertEqual(grid, makeUniformGrid(1), 'Gray 127 at threshold 128 → all 1s');
+        logEl.appendChild(renderGrid(grid));
+      }
+
+      // ── Group 2: Checkerboard ──
+      startGroup('2. processImageData — Checkerboard');
+
+      {
+        const img = makeCheckerboardImageData();
+        const grid = processor.processImageData(img);
+        const expected = makeCheckerboardGrid();
+        assertEqual(grid, expected, 'Checkerboard pattern matches expected');
+        logEl.appendChild(renderGrid(grid));
+      }
+
+      // ── Group 3: Threshold adjustment ──
+      startGroup('3. Threshold Adjustment');
+
+      {
+        // Gray 100 image with threshold 50 → luminance 100 > 50 → white (0)
+        processor.setThreshold(50);
+        const img = makeUniformImageData(100, 100, 100);
+        const grid = processor.processImageData(img);
+        assertEqual(grid, makeUniformGrid(0), 'Gray 100, threshold 50 → all 0s');
+      }
+
+      {
+        // Gray 100 image with threshold 200 → luminance 100 < 200 → black (1)
+        processor.setThreshold(200);
+        const img = makeUniformImageData(100, 100, 100);
+        const grid = processor.processImageData(img);
+        assertEqual(grid, makeUniformGrid(1), 'Gray 100, threshold 200 → all 1s');
+      }
+
+      {
+        // Threshold clamping
+        processor.setThreshold(-10);
+        assert(processor.threshold === 0, 'Threshold clamps to 0 for negative input');
+        processor.setThreshold(300);
+        assert(processor.threshold === 255, 'Threshold clamps to 255 for >255 input');
+        processor.setThreshold(128); // reset
+      }
+
+      // ── Group 4: gridToBytes ──
+      startGroup('4. gridToBytes — Byte Encoding');
+
+      {
+        const grid = makeUniformGrid(0);
+        const bytes = ImageProcessor.gridToBytes(grid);
+        assertEqual(bytes, [0, 0, 0, 0, 0, 0, 0, 0], 'All-zero grid → 8 zero bytes');
+      }
+
+      {
+        const grid = makeUniformGrid(1);
+        const bytes = ImageProcessor.gridToBytes(grid);
+        assertEqual(bytes, [255, 255, 255, 255, 255, 255, 255, 255], 'All-one grid → 8 × 0xFF');
+      }
+
+      {
+        // Single cell: row 0 col 0 = 1, rest 0
+        const grid = makeUniformGrid(0);
+        grid[0][0] = 1;
+        const bytes = ImageProcessor.gridToBytes(grid);
+        assertEqual(bytes[0], 0b10000000, 'Single cell [0][0]=1 → byte 0 = 0x80 (MSB)');
+        assertEqual(bytes[1], 0, 'Row 1 still 0');
+      }
+
+      {
+        // Single cell: row 3 col 7 = 1
+        const grid = makeUniformGrid(0);
+        grid[3][7] = 1;
+        const bytes = ImageProcessor.gridToBytes(grid);
+        assertEqual(bytes[3], 0b00000001, 'Single cell [3][7]=1 → byte 3 = 0x01 (LSB)');
+      }
+
+      {
+        // Checkerboard byte encoding
+        const grid = makeCheckerboardGrid();
+        const bytes = ImageProcessor.gridToBytes(grid);
+        // Row 0: 1,0,1,0,1,0,1,0 → 0b10101010 = 0xAA = 170
+        // Row 1: 0,1,0,1,0,1,0,1 → 0b01010101 = 0x55 = 85
+        assertEqual(bytes[0], 170, 'Checkerboard row 0 → 0xAA (170)');
+        assertEqual(bytes[1], 85, 'Checkerboard row 1 → 0x55 (85)');
+      }
+
+      // ── Group 5: bytesToGrid roundtrip ──
+      startGroup('5. bytesToGrid — Roundtrip');
+
+      {
+        const original = makeCheckerboardGrid();
+        const bytes = ImageProcessor.gridToBytes(original);
+        const decoded = ImageProcessor.bytesToGrid(bytes);
+        assertEqual(decoded, original, 'Checkerboard roundtrip: grid → bytes → grid');
+      }
+
+      {
+        const original = makeUniformGrid(1);
+        const bytes = ImageProcessor.gridToBytes(original);
+        const decoded = ImageProcessor.bytesToGrid(bytes);
+        assertEqual(decoded, original, 'All-ones roundtrip: grid → bytes → grid');
+      }
+
+      {
+        // Random-ish pattern
+        const original = [
+          [1,0,0,1,1,0,1,0],
+          [0,1,1,0,0,1,0,1],
+          [1,1,0,0,1,1,0,0],
+          [0,0,1,1,0,0,1,1],
+          [1,0,1,0,1,0,1,0],
+          [0,1,0,1,0,1,0,1],
+          [1,1,1,1,0,0,0,0],
+          [0,0,0,0,1,1,1,1],
+        ];
+        const bytes = ImageProcessor.gridToBytes(original);
+        const decoded = ImageProcessor.bytesToGrid(bytes);
+        assertEqual(decoded, original, 'Custom pattern roundtrip');
+      }
+
+      // ── Group 6: process() with canvas source ──
+      startGroup('6. process() — Canvas Source');
+
+      {
+        // Create a small canvas with a known pattern and process it
+        const src = document.createElement('canvas');
+        src.width = 8;
+        src.height = 8;
+        const sctx = src.getContext('2d');
+
+        // Fill all white
+        sctx.fillStyle = '#ffffff';
+        sctx.fillRect(0, 0, 8, 8);
+
+        // Draw a black square in top-left 4×4
+        sctx.fillStyle = '#000000';
+        sctx.fillRect(0, 0, 4, 4);
+
+        processor.setThreshold(128);
+        const grid = processor.process(src);
+
+        // Top-left 4×4 should be 1, rest should be 0
+        let topLeftCorrect = true;
+        let bottomRightCorrect = true;
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            if (r < 4 && c < 4) {
+              if (grid[r][c] !== 1) topLeftCorrect = false;
+            } else {
+              if (grid[r][c] !== 0) bottomRightCorrect = false;
+            }
+          }
+        }
+        assert(topLeftCorrect, 'Canvas: top-left 4×4 black → all 1s');
+        assert(bottomRightCorrect, 'Canvas: bottom-right area white → all 0s');
+        logEl.appendChild(renderGrid(grid));
+      }
+
+      // ── Group 7: Color image luminance ──
+      startGroup('7. Luminance Calculation (Color Images)');
+
+      {
+        // Pure red (255,0,0) → luminance = 0.299*255 = 76.245
+        // With threshold 128, 76.245 < 128 → black (1)
+        processor.setThreshold(128);
+        const img = makeUniformImageData(255, 0, 0);
+        const grid = processor.processImageData(img);
+        assertEqual(grid, makeUniformGrid(1), 'Pure red (lum≈76) at threshold 128 → all 1s (dark)');
+      }
+
+      {
+        // Pure green (0,255,0) → luminance = 0.587*255 = 149.685
+        // With threshold 128, 149.685 > 128 → white (0)
+        processor.setThreshold(128);
+        const img = makeUniformImageData(0, 255, 0);
+        const grid = processor.processImageData(img);
+        assertEqual(grid, makeUniformGrid(0), 'Pure green (lum≈150) at threshold 128 → all 0s (bright)');
+      }
+
+      {
+        // Pure blue (0,0,255) → luminance = 0.114*255 = 29.07
+        // With threshold 128, 29.07 < 128 → black (1)
+        processor.setThreshold(128);
+        const img = makeUniformImageData(0, 0, 255);
+        const grid = processor.processImageData(img);
+        assertEqual(grid, makeUniformGrid(1), 'Pure blue (lum≈29) at threshold 128 → all 1s (dark)');
+      }
+
+      // ── Summary ──
+      summaryEl.textContent = `${passedTests}/${totalTests} tests passed`;
+      summaryEl.className = 'summary ' + (passedTests === totalTests ? 'pass' : 'fail');
+    }
+
+    // Run on load
+    runTests();
+  </script>
+</body>
+</html>
